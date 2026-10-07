@@ -1,0 +1,62 @@
+﻿RUTALIBRE MVC + BASE DE DATOS RutaLibreDB (SQL Server)
+=====================================================
+
+El programa ya no usa el archivo SQLite (Rutalibre.db). Ahora lee y guarda todo
+en la base de datos SQL Server "RutaLibreDB".
+
+PASO 1 - Preparar la base de datos (en SQL Server Management Studio)
+---------------------------------------------------------------------
+  * Si YA tienes RutaLibreDB creada en tu PC:
+      Ejecuta "Base de datos/Integracion con el programa.sql"
+      (solo agrega la columna TipoVehiculo = Carro/Moto, que usa el programa;
+       no borra nada de tus datos).
+
+  * Si es un PC donde la base NO existe (ej. el del profesor):
+      Ejecuta "Base de datos/Instalacion completa (PC nuevo).sql"
+      (crea la base, las 7 tablas y los datos de ejemplo de una vez).
+
+PASO 2 - Revisar la cadena de conexión
+--------------------------------------
+  Abre appsettings.json. Por defecto dice:
+
+    Server=localhost;Database=RutaLibreDB;Trusted_Connection=True;TrustServerCertificate=True;...
+
+  Cambia SOLO la parte "Server=" para que sea igual al "Server name" con el que
+  entras en SQL Server Management Studio. Ejemplos comunes:
+      Server=localhost
+      Server=localhost\\SQLEXPRESS          (en JSON la \ se escribe doble)
+      Server=(localdb)\\MSSQLLocalDB
+      Server=NOMBRE-DE-TU-PC\\SQLEXPRESS
+
+  Si entras con usuario y contraseña (sa), cambia Trusted_Connection=True por:
+      User Id=sa;Password=TU_CLAVE;
+
+PASO 3 - Ejecutar
+-----------------
+  Abre RutaLibreMvc.slnx en Visual Studio y dale a Ejecutar (F5).
+  La primera vez Visual Studio descarga el paquete
+  Microsoft.EntityFrameworkCore.SqlServer automáticamente.
+
+QUÉ CAMBIÓ EN EL PROGRAMA
+-------------------------
+  * Usa SQL Server en lugar de SQLite (RutaLibreMvc.csproj, Program.cs, appsettings.json).
+  * Los modelos apuntan a tus tablas y columnas reales: VehiculoID, [Año], CategoriaID,
+    ClienteID, RentaID, EmpleadoID, etc. (Data/AppDbContext.cs).
+  * Nuevos modelos: Categoria, Empleado, Pago, Mantenimiento.
+  * Las categorías de los filtros y formularios salen de la tabla Categorias.
+  * Al registrar una renta:
+      - si la cédula ya existe en Clientes, se reutiliza ese cliente (la cédula es UNIQUE);
+      - se guarda el empleado que atendió (tabla Empleados);
+      - se registra el pago en la tabla Pagos con el método elegido.
+  * Al devolver un vehículo, su renta activa pasa a EstadoRenta = 'Finalizada'.
+  * Se valida que no se repita la placa al crear o editar.
+  * Los precios usan punto decimal (30.00) en cualquier PC.
+  * Ya no se crean tablas ni datos desde el código: todo viene de los scripts SQL.
+
+PROBLEMAS COMUNES
+-----------------
+  * "A network-related or instance-specific error" / "Cannot open database":
+      el nombre en Server= no coincide con tu SQL Server, o falta crear la base (Paso 1).
+  * "Invalid column name 'TipoVehiculo'": falta ejecutar "Integracion con el programa.sql".
+  * "Invalid column name 'Año'": la columna del año quedó con otro nombre; el script
+      de integración la corrige si se llama Anio.

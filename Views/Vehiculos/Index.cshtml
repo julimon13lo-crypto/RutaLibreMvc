@@ -1,0 +1,454 @@
+@model RutaLibreMvc.Models.ViewModel.RentaViewModel
+
+@{
+    ViewData["Title"] = "Gestión de Alquiler";
+    var mensaje = Model.Mensaje ?? TempData["Mensaje"] as string;
+    var tipoMensaje = Model.TipoMensaje ?? TempData["TipoMensaje"] as string;
+}
+
+@if (!string.IsNullOrEmpty(mensaje))
+{
+    <div class="alert alert-@tipoMensaje alert-dismissible fade show my-2" role="alert">
+        @mensaje
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+}
+
+<form method="post" id="rentalForm">
+    <input type="hidden" asp-for="VehiculoSeleccionadoId" id="selectedVehiculoId" />
+
+    <div class="row g-3">
+        <!-- Columna Izquierda: Filtros y Datos del Cliente -->
+        <div class="col-lg-4">
+            <!-- Filtros de Búsqueda -->
+            <div class="card card-custom mb-3">
+                <div class="card-header-custom">Filtros de Búsqueda y Fechas</div>
+                <div class="card-body">
+                    <div class="mb-2">
+                        <label class="form-label text-secondary small">Tipo de Vehículo:</label>
+                        <select class="form-select form-select-sm" asp-for="TipoFiltro" id="tipoSelect" onchange="filtrarTabla()">
+                            <option value="">Todos (Carros y Motos)</option>
+                            <option value="Carro">Carros</option>
+                            <option value="Moto">Motos</option>
+                        </select>
+                    </div>
+
+                    <div class="mb-2">
+                        <label class="form-label text-secondary small">Categoría:</label>
+                        <select class="form-select form-select-sm" asp-for="CategoriaFiltro" id="categoriaSelect" onchange="filtrarTabla()">
+                            <option value="">Todas</option>
+                            @foreach (var c in Model.Categorias)
+                            {
+                                <option value="@c.NombreCategoria">@c.NombreCategoria</option>
+                            }
+                        </select>
+                    </div>
+
+                    <div class="mb-2">
+                        <label class="form-label text-secondary small">Transmisión:</label>
+                        <select class="form-select form-select-sm" asp-for="TransmisionFiltro" id="transmisionSelect" onchange="filtrarTabla()">
+                            <option value="">Todas</option>
+                            <option value="Manual">Manual</option>
+                            <option value="Automática">Automática</option>
+                        </select>
+                    </div>
+
+                    <div class="row g-2">
+                        <div class="col-6 mb-2">
+                            <label class="form-label text-secondary small">Fecha Recogida:</label>
+                            <input type="date" class="form-control form-control-sm" asp-for="FechaRecogida" value="@Model.FechaRecogida.ToString("yyyy-MM-dd")" />
+                        </div>
+                        <div class="col-6 mb-2">
+                            <label class="form-label text-secondary small">Fecha Devolución:</label>
+                            <input type="date" class="form-control form-control-sm" asp-for="FechaDevolucion" value="@Model.FechaDevolucion.ToString("yyyy-MM-dd")" />
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Datos del Cliente -->
+            <div class="card card-custom mb-3">
+                <div class="card-header-custom">Datos del Cliente</div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label class="form-label text-secondary small">Nombre Completo:</label>
+                        <input type="text" class="form-control" asp-for="NombreCompleto" placeholder="Ej: Juan Pérez" />
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label text-secondary small">Documento / DNI (Solo números):</label>
+                        <input type="text" class="form-control" asp-for="Cedula" placeholder="Ej: 1012345678" oninput="this.value = this.value.replace(/[^0-9]/g, '')" />
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label text-secondary small">Teléfono (Solo números):</label>
+                        <input type="text" class="form-control" asp-for="Telefono" placeholder="Ej: 3001234567" oninput="this.value = this.value.replace(/[^0-9]/g, '')" />
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label text-secondary small">Correo electrónico (opcional):</label>
+                        <input type="email" class="form-control" asp-for="Email" placeholder="Ej: juan.perez@email.com" />
+                    </div>
+                </div>
+            </div>
+
+            <!-- Datos de la Renta -->
+            <div class="card card-custom mb-3">
+                <div class="card-header-custom">Datos de la Renta</div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label class="form-label text-secondary small">Atendido por (Empleado):</label>
+                        <select class="form-select" asp-for="EmpleadoId">
+                            <option value="">-- Sin asignar --</option>
+                            @foreach (var e in Model.Empleados)
+                            {
+                                <option value="@e.EmpleadoID">@e.NombreCompleto (@e.Cargo)</option>
+                            }
+                        </select>
+                    </div>
+
+                    <div class="mb-1">
+                        <label class="form-label text-secondary small">Método de Pago:</label>
+                        <select class="form-select" asp-for="MetodoPago">
+                            <option value="Efectivo">Efectivo</option>
+                            <option value="Tarjeta">Tarjeta</option>
+                            <option value="Transferencia">Transferencia</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Columna Derecha: Flota de Vehículos -->
+        <div class="col-lg-8">
+            <div class="card card-custom h-100">
+                <div class="card-header-custom d-flex justify-content-between align-items-center">
+                    <span>Flota de Vehículos</span>
+                    <button type="button" class="btn btn-sm btn-success fw-bold" data-bs-toggle="modal" data-bs-target="#modalNuevoVehiculo">
+                        <i class="bi bi-plus-circle me-1"></i> + Agregar Vehículo
+                    </button>
+                </div>
+                <div class="card-body p-0 table-responsive">
+                    <table class="table table-hover table-bordered table-custom mb-0 text-center" id="tablaVehiculos">
+                        <thead>
+                            <tr>
+                                <th>Tipo</th>
+                                <th>Placa</th>
+                                <th>Marca</th>
+                                <th>Modelo</th>
+                                <th>Año</th>
+                                <th>Precio/Día</th>
+                                <th>Categoría</th>
+                                <th>Estado</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var v in Model.Vehiculos)
+                            {
+                                string badgeClass = v.Estado switch
+                                {
+                                    "Disponible" => "bg-disponible",
+                                    "Rentado" => "bg-rentado",
+                                    "Mantenimiento" => "bg-mantenimiento",
+                                    _ => ""
+                                };
+
+                                string rowStyle = (Model.VehiculoSeleccionadoId == v.Id) ? "border border-dark border-3" : "";
+
+                                <tr class="@badgeClass @rowStyle vehiculo-row"
+                                    data-id="@v.Id"
+                                    data-tipo="@v.TipoVehiculo"
+                                    data-placa="@v.Placa"
+                                    data-marca="@v.Marca"
+                                    data-modelo="@v.Modelo"
+                                    data-anio="@v.Anio"
+                                    data-precio="@v.PrecioDia.ToString(System.Globalization.CultureInfo.InvariantCulture)"
+                                    data-categoria="@v.NombreCategoria"
+                                    data-categoria-id="@v.CategoriaId"
+                                    data-transmision="@v.Transmision"
+                                    data-estado="@v.Estado"
+                                    onclick="seleccionarVehiculo(this, @v.Id)"
+                                    style="cursor: pointer;">
+                                    <td>
+                                        @if (v.TipoVehiculo == "Moto")
+                                        {
+                                            <span class="badge bg-dark badge-tipo"><i class="bi bi-bicycle me-1"></i>Moto</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-secondary badge-tipo"><i class="bi bi-car-front me-1"></i>Carro</span>
+                                        }
+                                    </td>
+                                    <td class="fw-bold text-uppercase">@v.Placa</td>
+                                    <td>@v.Marca</td>
+                                    <td>@v.Modelo</td>
+                                    <td>@v.Anio</td>
+                                    <td class="fw-semibold">$ @v.PrecioDia.ToString("N2")</td>
+                                    <td>@v.NombreCategoria</td>
+                                    <td>
+                                        @if (v.Estado == "Rentado")
+                                        {
+                                            <span class="badge badge-rentado-destacado"><i class="bi bi-exclamation-triangle-fill me-1"></i>RENTADO</span>
+                                        }
+                                        else if (v.Estado == "Disponible")
+                                        {
+                                            <span class="badge badge-disponible-destacado">Disponible</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge badge-mantenimiento-destacado">Mantenimiento</span>
+                                        }
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Banner de Resumen y Botones -->
+    <div class="row mt-4 align-items-center">
+        <div class="col-lg-4">
+            <div class="text-secondary fw-bold small text-uppercase">RESUMEN</div>
+            <div class="total-banner">
+                TOTAL ESTIMADO: $ <span id="lblTotal">@Model.TotalEstimado.ToString("N2")</span>
+            </div>
+        </div>
+        <div class="col-lg-8 d-flex justify-content-end gap-2 flex-wrap">
+            <button type="submit" class="btn btn-action btn-calcular" asp-action="CalcularCosto">
+                <i class="bi bi-calculator me-1"></i> Calcular Costo
+            </button>
+            <button type="submit" class="btn btn-action btn-rentar" asp-action="RegistrarRenta">
+                <i class="bi bi-check-circle me-1"></i> Registrar Renta
+            </button>
+            <button type="submit" class="btn btn-action btn-devolucion" asp-action="RegistrarDevolucion">
+                <i class="bi bi-arrow-return-left me-1"></i> Devolver Vehículo
+            </button>
+            <button type="button" class="btn btn-action btn-editar" onclick="abrirModalEditar()">
+                <i class="bi bi-pencil-square me-1"></i> Editar Vehículo
+            </button>
+        </div>
+    </div>
+</form>
+
+<!-- Modal para AGREGAR Nuevo Vehículo -->
+<div class="modal fade" id="modalNuevoVehiculo" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form asp-action="CrearVehiculo" method="post">
+                <div class="modal-header bg-dark text-white">
+                    <h5 class="modal-title"><i class="bi bi-plus-circle me-2"></i>Agregar Nuevo Vehículo</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row">
+                        <div class="col-6 mb-3">
+                            <label class="form-label fw-bold small">Tipo de Vehículo:</label>
+                            <select name="TipoVehiculo" class="form-select" id="addTipoVehiculo">
+                                <option value="Carro">Carro</option>
+                                <option value="Moto">Moto</option>
+                            </select>
+                        </div>
+                        <div class="col-6 mb-3">
+                            <label class="form-label fw-bold small">Placa:</label>
+                            <input type="text" name="Placa" id="addPlaca" class="form-control text-uppercase" placeholder="Ej: KFX-842" required />
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-6 mb-3">
+                            <label class="form-label fw-bold small">Marca:</label>
+                            <input type="text" name="Marca" class="form-control" placeholder="Ej: Renault" required />
+                        </div>
+                        <div class="col-6 mb-3">
+                            <label class="form-label fw-bold small">Modelo:</label>
+                            <input type="text" name="Modelo" class="form-control" placeholder="Ej: Duster" required />
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-6 mb-3">
+                            <label class="form-label fw-bold small">Año:</label>
+                            <input type="number" name="Anio" class="form-control" value="2024" required />
+                        </div>
+                        <div class="col-6 mb-3">
+                            <label class="form-label fw-bold small">Precio por Día ($):</label>
+                            <input type="number" step="0.01" name="PrecioDia" class="form-control" placeholder="35.00" required />
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-6 mb-3">
+                            <label class="form-label fw-bold small">Categoría:</label>
+                            <select name="CategoriaId" class="form-select" required>
+                                @foreach (var c in Model.Categorias)
+                                {
+                                    <option value="@c.CategoriaID">@c.NombreCategoria</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="col-6 mb-3">
+                            <label class="form-label fw-bold small">Transmisión:</label>
+                            <select name="Transmision" class="form-select">
+                                <option value="Manual">Manual</option>
+                                <option value="Automática">Automática</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-success fw-bold"><i class="bi bi-save me-1"></i>Guardar Vehículo</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Modal para EDITAR Vehículo -->
+<div class="modal fade" id="modalEditarVehiculo" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form asp-action="EditarVehiculo" method="post">
+                <input type="hidden" name="Id" id="editId" />
+                <div class="modal-header bg-warning text-dark">
+                    <h5 class="modal-title fw-bold"><i class="bi bi-pencil-square me-2"></i>Editar Vehículo</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row">
+                        <div class="col-6 mb-3">
+                            <label class="form-label fw-bold small">Tipo de Vehículo:</label>
+                            <select name="TipoVehiculo" id="editTipo" class="form-select">
+                                <option value="Carro">Carro</option>
+                                <option value="Moto">Moto</option>
+                            </select>
+                        </div>
+                        <div class="col-6 mb-3">
+                            <label class="form-label fw-bold small">Placa:</label>
+                            <input type="text" name="Placa" id="editPlaca" class="form-control text-uppercase" required />
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-6 mb-3">
+                            <label class="form-label fw-bold small">Marca:</label>
+                            <input type="text" name="Marca" id="editMarca" class="form-control" required />
+                        </div>
+                        <div class="col-6 mb-3">
+                            <label class="form-label fw-bold small">Modelo:</label>
+                            <input type="text" name="Modelo" id="editModelo" class="form-control" required />
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-6 mb-3">
+                            <label class="form-label fw-bold small">Año:</label>
+                            <input type="number" name="Anio" id="editAnio" class="form-control" required />
+                        </div>
+                        <div class="col-6 mb-3">
+                            <label class="form-label fw-bold small">Precio/Día ($):</label>
+                            <input type="number" step="0.01" name="PrecioDia" id="editPrecio" class="form-control" required />
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-6 mb-3">
+                            <label class="form-label fw-bold small">Categoría:</label>
+                            <select name="CategoriaId" id="editCategoria" class="form-select" required>
+                                @foreach (var c in Model.Categorias)
+                                {
+                                    <option value="@c.CategoriaID">@c.NombreCategoria</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="col-6 mb-3">
+                            <label class="form-label fw-bold small">Transmisión:</label>
+                            <select name="Transmision" id="editTransmision" class="form-select">
+                                <option value="Manual">Manual</option>
+                                <option value="Automática">Automática</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold small">Estado Actual:</label>
+                        <select name="Estado" id="editEstado" class="form-select">
+                            <option value="Disponible">Disponible</option>
+                            <option value="Rentado">Rentado</option>
+                            <option value="Mantenimiento">Mantenimiento</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-warning fw-bold"><i class="bi bi-check-circle me-1"></i>Guardar Cambios</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+    var filaSeleccionadaData = null;
+
+    function seleccionarVehiculo(row, id) {
+        document.querySelectorAll('.vehiculo-row').forEach(r => r.classList.remove('table-active', 'border', 'border-dark', 'border-3'));
+        row.classList.add('table-active', 'border', 'border-dark', 'border-3');
+        document.getElementById('selectedVehiculoId').value = id;
+
+        filaSeleccionadaData = {
+            id: id,
+            tipo: row.getAttribute('data-tipo'),
+            placa: row.getAttribute('data-placa'),
+            marca: row.getAttribute('data-marca'),
+            modelo: row.getAttribute('data-modelo'),
+            anio: row.getAttribute('data-anio'),
+            precio: row.getAttribute('data-precio'),
+            categoria: row.getAttribute('data-categoria'),
+            categoriaId: row.getAttribute('data-categoria-id'),
+            transmision: row.getAttribute('data-transmision'),
+            estado: row.getAttribute('data-estado')
+        };
+    }
+
+    function abrirModalEditar() {
+        var selectedId = document.getElementById('selectedVehiculoId').value;
+        if (!selectedId || !filaSeleccionadaData) {
+            alert('Por favor, selecciona primero un vehículo de la tabla para poder editarlo.');
+            return;
+        }
+
+        document.getElementById('editId').value = filaSeleccionadaData.id;
+        document.getElementById('editTipo').value = filaSeleccionadaData.tipo;
+        document.getElementById('editPlaca').value = filaSeleccionadaData.placa;
+        document.getElementById('editMarca').value = filaSeleccionadaData.marca;
+        document.getElementById('editModelo').value = filaSeleccionadaData.modelo;
+        document.getElementById('editAnio').value = filaSeleccionadaData.anio;
+        document.getElementById('editPrecio').value = filaSeleccionadaData.precio;
+        document.getElementById('editCategoria').value = filaSeleccionadaData.categoriaId;
+        document.getElementById('editTransmision').value = filaSeleccionadaData.transmision;
+        document.getElementById('editEstado').value = filaSeleccionadaData.estado;
+
+        var modal = new bootstrap.Modal(document.getElementById('modalEditarVehiculo'));
+        modal.show();
+    }
+
+    function filtrarTabla() {
+        var tipo = document.getElementById('tipoSelect').value.toLowerCase();
+        var cat = document.getElementById('categoriaSelect').value.toLowerCase();
+        var trans = document.getElementById('transmisionSelect').value.toLowerCase();
+        var rows = document.querySelectorAll('.vehiculo-row');
+
+        rows.forEach(r => {
+            var rTipo = (r.getAttribute('data-tipo') || '').toLowerCase();
+            var rCat = (r.getAttribute('data-categoria') || '').toLowerCase();
+            var rTrans = (r.getAttribute('data-transmision') || '').toLowerCase();
+
+            var matchTipo = !tipo || rTipo === tipo;
+            var matchCat = !cat || rCat === cat;
+            var matchTrans = !trans || rTrans.includes(trans);
+
+            if (matchTipo && matchCat && matchTrans) {
+                r.style.display = '';
+            } else {
+                r.style.display = 'none';
+            }
+        });
+    }
+</script>
